@@ -7,6 +7,9 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"github.com/valyala/fasthttp"
@@ -37,7 +40,7 @@ const (
 	argonMemory       = 256 * 1024
 	argonThreads      = 4
 	argonKeyLen       = 32
-	url               = "http://localhost:9000/registry"
+	url               = "https://localhost:443/registry"
 )
 
 type UserAccountLocal struct {
@@ -77,6 +80,11 @@ type DIDRegistryByUser struct {
 	PublicKey      string `json:"public_key"`
 }
 
+type FinalRegistration struct {
+	DIDHASH     string `json:"did_hash"`
+	CreatedTime string `json:"created"`
+	PublicKey   string `json:"public_key"`
+}
 type ECDSASignature struct {
 	R []byte `json:"r"`
 	S []byte `json:"s"`
@@ -88,6 +96,15 @@ type DIDAuthentication struct {
 	Signature ECDSASignature `json:"signature"`
 	PublicKey string         `json:"public_key"`
 	Timestamp int64
+}
+
+type ServerResponse struct {
+	Status  int    `json:"status"`
+	Message string `json:"message"`
+	Data    struct {
+		DID      string            `json:"did"`
+		Services map[string]string `json:"services"`
+	} `json:"data"`
 }
 
 var challengeStore = struct {
@@ -275,31 +292,30 @@ func LoadFromLocalWithPassword(password string) (UserAccountLocal, error) {
 	}, nil
 }
 
-func CreateDID(account UserAccountLocal, biometric string, nationalID string) (interface{}, error) {
+func CreateDID(account UserAccountLocal, biometric string, nationalID string) (*ServerResponse, error) {
 	if nationalID == "" {
-		return "", errors.New("national ID not configured")
+		return &ServerResponse{}, errors.New("national ID not configured")
 	}
 
 	reader := hkdf.New(sha256.New, crypto.FromECDSA(account.PrivateKey), nil, nil)
 	hmacKey := make([]byte, 32)
 	if _, err := io.ReadFull(reader, hmacKey); err != nil {
-		return "", fmt.Errorf("hmac key derivation failed: %w", err)
+		return &ServerResponse{}, fmt.Errorf("hmac key derivation failed: %w", err)
 	}
 
 	biometricSalt := make([]byte, biometricSaltSize)
 	if _, err := rand.Read(biometricSalt); err != nil {
-		return "", fmt.Errorf("biometric salt failed: %w", err)
+		return &ServerResponse{}, fmt.Errorf("biometric salt failed: %w", err)
 	}
 
 	biometricHash, err := hashBiometric(biometric, biometricSalt)
 	if err != nil {
-		return "", fmt.Errorf("biometric hashing failed: %w", err)
+		return &ServerResponse{}, fmt.Errorf("biometric hashing failed: %w", err)
 	}
 
 	mac := hmac.New(sha256.New, hmacKey)
 	mac.Write([]byte(nationalID))
 	nationalIDHash := base58.Encode(mac.Sum(nil))
-
 	registry := DIDRegistryByUser{
 		NationalIDHash: nationalIDHash,
 		BiometricHash:  base58.Encode(biometricHash),
@@ -310,17 +326,17 @@ func CreateDID(account UserAccountLocal, biometric string, nationalID string) (i
 
 	dataBytes, err := json.Marshal(registry)
 	if err != nil {
-		return "", fmt.Errorf("json marshaling failed: %w", err)
+		return &ServerResponse{}, fmt.Errorf("json marshaling failed: %w", err)
 	}
 
 	signatureByte, err := hashSign(dataBytes, account.PrivateKey)
 	if err != nil {
-		return "", fmt.Errorf("hashing failed: %w", err)
+		return &ServerResponse{}, fmt.Errorf("hashing failed: %w", err)
 	}
 	signature := base58.Encode(signatureByte)
-	resp, err := sendToServerNode(signature, registry)
+	resp, err := sendToServerNode(signature, registry, account.PrivateKey)
 	if err != nil {
-		return "", fmt.Errorf("sending to server failed: %w", err)
+		return &ServerResponse{}, fmt.Errorf("sending to server failed: %w", err)
 	}
 	return resp, nil
 }
@@ -331,47 +347,117 @@ func hashSign(data []byte, privateKey *ecdsa.PrivateKey) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign data: %w", err)
 	}
-	hashSig := sha256.Sum256(sig)
-	return hashSig[:], nil
+	return sig, nil
 }
 
-func sendToServerNode(signatureBase58 string, registry DIDRegistryByUser) (interface{}, error) {
+func sendToServerNode(signatureBase58 string, registry DIDRegistryByUser, privateKey *ecdsa.PrivateKey) (*ServerResponse, error) {
 	var reqToServer struct {
-		Registration DIDRegistryByUser `json:"registration"`
+		Registration FinalRegistration `json:"registration"`
+		PublicKey    string            `json:"public_key"`
 		Signature    string            `json:"signature"`
 	}
 	var serverResp struct {
-		DID      string `json:"did"`
-		Services []struct{}
+		DID      string            `json:"did"`
+		Services map[string]string `json:"services"`
 	}
-	reqToServer.Registration = registry
-	reqToServer.Signature = signatureBase58
+
+	// ✅ Step 1: Concatenate Data for Hashing
+	hashData := fmt.Sprintf("%s%s%s%s%s",
+		registry.NationalIDHash,
+		registry.BiometricHash,
+		registry.BiometricSalt,
+		registry.CreatedTime,
+		registry.PublicKey,
+	)
+	hash := sha256.Sum256([]byte(hashData))
+
+	// ✅ Step 2: Store Hash in Base58
+	publicKey := privateKey.PublicKey
+	xBytes := publicKey.X.Bytes()
+	yBytes := publicKey.Y.Bytes()
+
+	// Pad to 32 bytes (secp256k1 coordinates are 32 bytes each)
+	paddedX := make([]byte, 32)
+	paddedY := make([]byte, 32)
+	copy(paddedX[32-len(xBytes):], xBytes)
+	copy(paddedY[32-len(yBytes):], yBytes)
+
+	// Concatenate with 0x04 prefix (uncompressed format)
+	publicKeyBytes := append([]byte{0x04}, append(paddedX, paddedY...)...)
+
+	// Encode as hex for transmission
+	reqToServer.PublicKey = hex.EncodeToString(publicKeyBytes)
+	reqToServer.Registration = FinalRegistration{
+		DIDHASH:     base58.Encode(hash[:]),
+		CreatedTime: time.Now().UTC().Format(time.RFC3339),
+		PublicKey:   hex.EncodeToString(publicKeyBytes), // Use hex here
+	}
+
+	// ✅ Step 3: Sign the Hash (original bytes, not Base58 encoded string)
+	didHashByte := hash[:] // Directly use the hash bytes
+	signatureFinal, err := crypto.Sign(didHashByte, privateKey)
+	if err != nil {
+		return &ServerResponse{}, fmt.Errorf("failed to sign data: %w", err)
+	}
+	// ✅ Step 4: Encode Signature in Base58
+	reqToServer.Signature = base58.Encode(signatureFinal)
+
+	// ✅ Step 5: Marshal to JSON
+	jsonData, _ := json.Marshal(reqToServer)
+	fmt.Println("Sending JSON:", string(jsonData))
+
+	// ✅ Step 6: Read TLS Certificate
+	caCert, err := os.ReadFile("/Users/swanhtet1aungphyo/IdeaProjects/KYC_DID_AUTHENTICATION_SYSTEM/client/internal/cryptography/server.crt")
+	if err != nil {
+		return &ServerResponse{}, fmt.Errorf("failed to read server certificate: %w", err)
+	}
+
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(caCert) {
+		return &ServerResponse{}, fmt.Errorf("failed to add server certificate to trust pool")
+	}
+
 	client := &fasthttp.Client{
 		MaxConnsPerHost: 100,
+		TLSConfig: &tls.Config{
+			RootCAs: certPool,
+		},
 	}
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
 	defer fasthttp.ReleaseRequest(req)
 	defer fasthttp.ReleaseResponse(resp)
+
 	serverReqBytes, err := json.Marshal(reqToServer)
 	if err != nil {
-		return nil, fmt.Errorf("json marshaling failed: %w", err)
+		return &ServerResponse{}, fmt.Errorf("json marshaling failed: %w", err)
 	}
+
 	req.SetRequestURI(url)
 	req.Header.SetMethod(fasthttp.MethodPost)
 	req.Header.SetContentType("application/json")
 	req.SetBody(serverReqBytes)
+
 	if err := client.Do(req, resp); err != nil {
-		return nil, fmt.Errorf("failed to send to server: %w", err)
+		return &ServerResponse{}, fmt.Errorf("failed to send to server: %w", err)
 	}
+
 	if resp.StatusCode() != fasthttp.StatusOK {
-		return nil, fmt.Errorf("failed to send to server: status code %d", resp.StatusCode())
+		log.Println(resp.StatusCode())
+		log.Println(string(resp.Body()))
+		return &ServerResponse{}, fmt.Errorf("failed to send to server: status code %d", resp.StatusCode())
 	}
+
 	respBody := resp.Body()
-	if err := json.Unmarshal(respBody, &serverResp); err != nil {
+	log.Println("Raw server response:", string(respBody))
+	var serverResponse ServerResponse
+	if err := json.Unmarshal(respBody, &serverResponse); err != nil {
 		return nil, fmt.Errorf("json unmarshaling failed: %w", err)
 	}
-	return serverResp, nil
+
+	log.Println(respBody)
+	log.Printf("Parsed DID: %s", serverResp.DID)
+	return &serverResponse, nil
 }
 
 func hashBiometric(biometric string, salt []byte) ([]byte, error) {

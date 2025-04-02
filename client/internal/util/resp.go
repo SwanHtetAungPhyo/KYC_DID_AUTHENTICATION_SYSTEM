@@ -6,10 +6,10 @@ import (
 )
 
 type Response struct {
-	Message  string        `json:"message,omitempty"`
-	FilePath string        `json:"filePath,omitempty"`
-	Error    string        `json:"error,omitempty"`
-	Data     []interface{} `json:"data,omitempty"`
+	Message  string `json:"message,omitempty"`
+	FilePath string `json:"filePath,omitempty"`
+	Error    string `json:"error,omitempty"`
+	Data     any    `json:"data,omitempty"`
 }
 
 func JSONResponse(ctx *fasthttp.RequestCtx, statusCode int, response Response) {

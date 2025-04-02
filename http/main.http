@@ -13,14 +13,18 @@ Content-Type: application/json
 
 
 ###
-POST localhost:8080/login
+POST https://localhost:443/registry
 Content-Type: application/json
 
 {
-  "full_name": "John Doe",
-  "email": "johndoe@example.com",
-  "password": "password12345678",
-  "biometric": "fingerprint_data",
-  "national": "1234567890"
+  "did": {
+    "national_id_hash": "f2bfe30e43db8b8a5fabc345de093d1f84f0152f87b8bde4f8e9e13a36c67b38",
+    "biometric_hash": "a5b57c1c1a173a6fe8a8bfc23de65da4dff66e0f1f5b5822090d05193b3f77b2",
+    "biometric_salt": "e2a519a1ad7b13b88b798b3f7735f223d70227a45cd4b7276e8d3d90c1e8d76a",
+    "created_time": "2025-04-02 15:04:05",
+    "public_key": "mIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDo4MNsT0FgFqfmmrwVsXXF3MBeStDWpF2ljHwxoxY5T8Obmw3X1eJItTD9oYcM0B0whkzB71/5wNRXZbBO2sM6Y5KHofO6iz22/xdwLgHD6DWUviFBtUgPt0Rmnqu92A7BFTlbVxwhrLl21eVd7aOd5l1h0hvmkGiQtm70sl1KNz7fq9geJ0g5H6dtbkguNBIN4y7WZ4TO9xzLsGqAqYYaew0Agh1uDY0UpmBihFTI1YlDN5ZKVmVrBoXz6p4h8d6SYwtpfg=="
+  },
+  "signature": "3044022064b477a0f2c3a3e34c34c20c69d640d48fe0a3f9d87de0b2438c41654bb7a2a8022002a2e59398a55cfd3ed11fe58f8b93e2925ed9c8e1d9a9cc10a33c5e4772d9ae"
 }
+
 

@@ -2,8 +2,9 @@ package services
 
 import (
 	"errors"
-	"github.com/SwanHtetAungPhyo/nigga/client/internal/cryptography"
-	"github.com/SwanHtetAungPhyo/nigga/client/internal/model"
+	"github.com/SwanHtetAungPhyo/kycdid/internal/cryptography"
+	"github.com/SwanHtetAungPhyo/kycdid/internal/model"
+
 	"github.com/goccy/go-json"
 	"github.com/zalando/go-keyring"
 	"golang.org/x/crypto/bcrypt"

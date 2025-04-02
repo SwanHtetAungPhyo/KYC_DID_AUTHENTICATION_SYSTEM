@@ -1,0 +1,9 @@
+# config.yaml
+server_addr: "127.0.0.1"
+server_port: 8081
+log_level: "debug"
+db_host: "db.example.com"
+db_port: 5432
+db_user: "admin"
+db_password: "securepassword"
+db_name: "production_db"

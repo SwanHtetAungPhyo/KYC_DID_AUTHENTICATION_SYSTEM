@@ -1,24 +1,24 @@
 package handler
 
 import (
-	"github.com/SwanHtetAungPhyo/nigga/client/internal/cryptography"
-	"github.com/SwanHtetAungPhyo/nigga/client/internal/model"
-	"github.com/SwanHtetAungPhyo/nigga/client/internal/services"
-	"github.com/SwanHtetAungPhyo/nigga/client/internal/util"
+	"github.com/SwanHtetAungPhyo/kycdid/internal/cryptography"
+	"github.com/SwanHtetAungPhyo/kycdid/internal/model"
+	"github.com/SwanHtetAungPhyo/kycdid/internal/services"
+	"github.com/SwanHtetAungPhyo/kycdid/internal/util"
 	"github.com/goccy/go-json"
 	"github.com/valyala/fasthttp"
 	"log"
 )
 
-type HandlerImpl struct {
+type Impl struct {
 	service services.ServicesImpl
 }
 
-func NewHandler(service services.ServicesImpl) *HandlerImpl {
-	return &HandlerImpl{service: service}
+func NewHandler(service services.ServicesImpl) *Impl {
+	return &Impl{service: service}
 }
 
-func (h *HandlerImpl) AccountGeneration(ctx *fasthttp.RequestCtx) {
+func (h *Impl) AccountGeneration(ctx *fasthttp.RequestCtx) {
 	var req model.RequestBody
 	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil || req.Password == "" {
 		log.Printf("AccountGeneration - Invalid JSON or missing 'password': %v", err)
@@ -41,7 +41,7 @@ func (h *HandlerImpl) AccountGeneration(ctx *fasthttp.RequestCtx) {
 	})
 }
 
-func (h *HandlerImpl) GetAccountInfo(ctx *fasthttp.RequestCtx) {
+func (h *Impl) GetAccountInfo(ctx *fasthttp.RequestCtx) {
 	var req model.RequestBody
 	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil || req.Password == "" {
 		log.Printf("GetAccountInfo - Invalid JSON or missing 'password': %v", err)
@@ -73,7 +73,7 @@ func (h *HandlerImpl) GetAccountInfo(ctx *fasthttp.RequestCtx) {
 	})
 }
 
-func (h *HandlerImpl) CreatAccountLocalAndSendToServer(ctx *fasthttp.RequestCtx) {
+func (h *Impl) CreatAccountLocalAndSendToServer(ctx *fasthttp.RequestCtx) {
 	var req model.RequestBody
 	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil || req.Password == "" {
 		log.Printf("CreatAccountLocalAndSendToServer - Invalid JSON or missing 'password': %v", err)
@@ -97,7 +97,7 @@ func (h *HandlerImpl) CreatAccountLocalAndSendToServer(ctx *fasthttp.RequestCtx)
 	})
 }
 
-func (h *HandlerImpl) Login(ctx *fasthttp.RequestCtx) {
+func (h *Impl) Login(ctx *fasthttp.RequestCtx) {
 	var req model.RequestBody
 	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil || req.Password == "" {
 		log.Printf("Login - Invalid JSON or missing 'password': %v", err)
@@ -128,7 +128,7 @@ func (h *HandlerImpl) Login(ctx *fasthttp.RequestCtx) {
 	})
 }
 
-func (h *HandlerImpl) CreateDID(ctx *fasthttp.RequestCtx) {
+func (h *Impl) CreateDID(ctx *fasthttp.RequestCtx) {
 	var req model.RequestBody
 	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil || req.Password == "" {
 		log.Printf("CreateDID - Invalid JSON or missing 'password': %v", err)
@@ -146,7 +146,7 @@ func (h *HandlerImpl) CreateDID(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	did, err := cryptography.CreateDID(loadAccount, req.Biometric, req.NationalID)
+	serverResp, err := cryptography.CreateDID(loadAccount, req.Biometric, req.NationalID)
 	if err != nil {
 		log.Printf("CreateDID - Failed to create DID: %v", err)
 		util.JSONResponse(ctx, fasthttp.StatusInternalServerError, util.Response{
@@ -155,11 +155,9 @@ func (h *HandlerImpl) CreateDID(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	log.Printf("CreateDID - DID created successfully: DID=%s", did)
+	log.Printf("CreateDID - DID created successfully: DID=%s", serverResp.Data.DID)
 	util.JSONResponse(ctx, fasthttp.StatusOK, util.Response{
 		Message: "DID created successfully",
-		Data: []interface{}{
-			did,
-		},
+		Data:    serverResp,
 	})
 }
