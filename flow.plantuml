@@ -1,0 +1,34 @@
+@startuml
+actor User
+participant Client
+participant Server
+participant IOS_KEY_CHAIN
+participant Ethereum_library
+participant Cassandra_Cluster
+participant ThirdPartyAppWhichUseTHisSystem
+
+' User Registration Flow
+User -> Client: Register with email and password
+Client -> IOS_KEY_CHAIN: Store email and password
+User -> Client: Create account on the system
+Client -> User: Generate Ethereum-compatible key pair and encrypt it with Argon2\nStore in file
+Client -> User: Request KYC and biometric data, hash and sign it\n(Only store KYC + biometric hash in IOS_KEYCHAIN)
+
+' DID Request and Storage Flow
+Client -> Server: Request DID with biometric + KYC hash signed by Ethereum private key
+Server -> Client: Verify signature and send response to Client,
+Client -> IOS_KEY_CHAIN: Store the DID in Keychain
+Server -> Cassandra_Cluster: Store hashed and signed DID in Cassandra
+
+' Third Party Authentication Flow
+User -> ThirdPartyAppWhichUseTHisSystem: Want to create an account
+ThirdPartyAppWhichUseTHisSystem -> Server: Check if user is valid
+Server -> User: Send Zero-Knowledge Proof (ZKP)
+User -> Server: Provide proof of ZKP
+Server -> ThirdPartyAppWhichUseTHisSystem: Send authentication success alert after successful proof
+ThirdPartyAppWhichUseTHisSystem -> User: Account opened on the third-party system
+
+' Final Updates on Chain and Database
+Server -> Client: Add ThirdPartyAppWhichUseTHisSystem method along with DID\nOn chain and Cassandra cluster, send success alert
+
+@enduml
