@@ -1,0 +1,26 @@
+###
+POST http://localhost:8080/did
+Content-Type: application/json
+
+{
+  "full_name": "John Doe",
+  "email": "johndoe@example.com",
+  "password": "password12345678",
+  "biometric": "fingerprint_data",
+  "national": "1234567890"
+}
+
+
+
+###
+POST localhost:8080/login
+Content-Type: application/json
+
+{
+  "full_name": "John Doe",
+  "email": "johndoe@example.com",
+  "password": "password12345678",
+  "biometric": "fingerprint_data",
+  "national": "1234567890"
+}
+
