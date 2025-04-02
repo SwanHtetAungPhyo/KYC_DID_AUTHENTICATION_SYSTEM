@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"github.com/SwanHtetAungPhyo/nigga/internal/handler"
-	"github.com/SwanHtetAungPhyo/nigga/internal/services"
+	"github.com/SwanHtetAungPhyo/nigga/client/internal/handler"
+	"github.com/SwanHtetAungPhyo/nigga/client/internal/services"
 	"github.com/fasthttp/router"
 	"github.com/valyala/fasthttp"
 	"log"

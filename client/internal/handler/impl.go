@@ -1,10 +1,10 @@
 package handler
 
 import (
-	"github.com/SwanHtetAungPhyo/nigga/internal/cryptography"
-	"github.com/SwanHtetAungPhyo/nigga/internal/model"
-	"github.com/SwanHtetAungPhyo/nigga/internal/services"
-	"github.com/SwanHtetAungPhyo/nigga/internal/util"
+	"github.com/SwanHtetAungPhyo/nigga/client/internal/cryptography"
+	"github.com/SwanHtetAungPhyo/nigga/client/internal/model"
+	"github.com/SwanHtetAungPhyo/nigga/client/internal/services"
+	"github.com/SwanHtetAungPhyo/nigga/client/internal/util"
 	"github.com/goccy/go-json"
 	"github.com/valyala/fasthttp"
 	"log"
